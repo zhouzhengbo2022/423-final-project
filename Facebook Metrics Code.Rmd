@@ -490,7 +490,92 @@ model_new_log=lm(log.Page.Total.Likes ~ Post.Hour+
 }
 ```
 
-# 8. Conclusion - Finalizing the Model
+# 8. Random Forest & Bagging
+#install.packages("randomForest")
+library(randomForest)
+
+##Test
+fit = lm(Page.Total.Likes~ Type+ 
+              Category+
+		  Post.Month+
+		  Post.Weekday+
+              Post.Hour+
+              Paid+
+              Total.Reach+
+              Total.Impressions+
+              Engaged.Users+
+              Consumers+
+              Consumptions+
+              Impressions.for.Users.with.Likes+
+              Reach.by.Users.with.Likes+
+              Users.with.Likes.and.Engagement+
+              Comment+
+              Like+
+              Share+
+              Total.Interactions,
+              data=dataset)
+mean(fit$residuals^2)
+summary(fit)$r.squared
+
+# Bagging
+randomForest(Page.Total.Likes~ Type+ 
+              Category+
+		  Post.Month+
+		  Post.Weekday+
+              Post.Hour+
+              Paid+
+              Total.Reach+
+              Total.Impressions+
+              Engaged.Users+
+              Consumers+
+              Consumptions+
+              Impressions.for.Users.with.Likes+
+              Reach.by.Users.with.Likes+
+              Users.with.Likes.and.Engagement+
+              Comment+
+              Like+
+              Share+
+              Total.Interactions,
+              data=dataset, mtry=18)
+
+# RandomForest
+randomForest(Page.Total.Likes~ Type+ 
+              Category+
+		  Post.Month+
+		  Post.Weekday+
+              Post.Hour+
+              Paid+
+              Total.Reach+
+              Total.Impressions+
+              Engaged.Users+
+              Consumers+
+              Consumptions+
+              Impressions.for.Users.with.Likes+
+              Reach.by.Users.with.Likes+
+              Users.with.Likes.and.Engagement+
+              Comment+
+              Like+
+              Share+
+              Total.Interactions,
+              data=dataset)
+
+# 9. GBM
+#install.packages("gbm")
+library (gbm)
+
+set.seed(1)
+boost.dataset=gbm(Page.Total.Likes~.,data=dataset, distribution= "gaussian",n.trees =500, interaction.depth =4)
+
+summary(boost.dataset)
+
+##partialPlots
+par(mfrow=c(1,2))
+plot(boost.dataset ,i="Post.Month")
+plot(boost.dataset ,i="Reach.by.Users.with.Likes")
+plot(boost.dataset ,i="Paid")
+
+
+# 10. Conclusion - Finalizing the Model
 
 In our final model our response is Page.Total.Likes and our covariates are Post.Hour, Consumers, Reach.by.Users.with.Likes, Users.with.Likes.and.Engagement, Like and Share.  
 

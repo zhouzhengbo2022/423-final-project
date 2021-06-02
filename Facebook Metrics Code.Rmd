@@ -30,12 +30,13 @@ require(MASS)
 library(ggplot2) 
 library(psych)
 library(car)
+library(glmnet)
 
 rm(list=ls()) # clear environment
 ```
    
 ```{r, echo=FALSE, results='hide', message=FALSE, error=FALSE, warning=FALSE}
-dataset <- read.csv("dataset_Facebook.csv", sep=";", header=T) # import data
+dataset <- read.csv("/Users/miley/Desktop/2021 Spring/Data science/project/ML/Facebook_metrics/dataset_Facebook.csv", sep=";", header=T) # import data
 
 # rename the variable for easy handling
 names(dataset)[1] <- "Page.Total.Likes"
@@ -158,6 +159,8 @@ Three functions are included in this one matrix. The lower left shows pairwise c
 ```{r, echo=FALSE, fig.width=20, fig.height=16}
 # scatter plot matrix, histogram and coorelation
 pairs.panels(dataset)
+plot(dataset)
+cor(dataset[, numeric_cols])
 ```
   
 # 2. Initial Model Building  
@@ -575,7 +578,51 @@ plot(boost.dataset ,i="Reach.by.Users.with.Likes")
 plot(boost.dataset ,i="Paid")
 
 
-# 10. Conclusion - Finalizing the Model
+# 10. stepwise, ridge, and lasso model
+```{r}
+set.seed(12345)
+train = runif(nrow(dataset))<.5 
+```
+
+
+```{r}
+#stepwise model
+stepwise_model = step(model4)
+yhat = predict(stepwise_model, dataset[!train,])
+mean((dataset$Page.Total.Likes[!train] - yhat)^2)        # compute test set MSE
+summary(stepwise_model)
+```
+```{r}
+#ridge model
+x = model.matrix(Page.Total.Likes ~ ., dataset)
+fit.ridge = glmnet(x[train,], dataset$Page.Total.Likes[train], alpha=0) # alpha=0 means ridge
+plot(fit.ridge, xvar="lambda")
+fit.cv = cv.glmnet(x[train,], dataset$Page.Total.Likes[train], alpha=0) # find optimal lambda
+fit.cv$lambda.min        # optimal value of lambda
+fit.ridge2 = glmnet(x[train,], dataset$Page.Total.Likes[train], alpha=0, lambda = fit.cv$lambda.min)
+fit.ridge2$beta
+abline(v=log(fit.cv$lambda.min), col=2)
+plot(fit.cv)          # plot MSE vs. log(lambda)
+yhat = predict(fit.ridge, s=fit.cv$lambda.min, newx=x[!train,])  # find yhat for best model
+mean((dataset$Page.Total.Likes[!train] - yhat)^2)      # compute test set MSE
+
+```
+```{r}
+#lasso model
+fit.lasso = glmnet(x[train,], dataset$Page.Total.Likes[train], alpha=1) # lambda=1 means lasso
+plot(fit.lasso, xvar="lambda")
+fit.cv = cv.glmnet(x[train,], dataset$Page.Total.Likes[train], alpha=1)
+plot(fit.cv)
+abline(v=log(fit.cv$lambda.min), col=2)
+abline(v=log(fit.cv$lambda.1se), col=3)
+yhat = predict(fit.lasso, s=fit.cv$lambda.min, newx=x[!train,])
+mean((dataset$Page.Total.Likes[!train] - yhat)^2)
+fit.lasso2 = glmnet(x[train,], dataset$Page.Total.Likes[train], alpha=1, lambda = fit.cv$lambda.min)
+fit.lasso2$beta
+
+```
+
+# 11. Conclusion - Finalizing the Model
 
 In our final model our response is Page.Total.Likes and our covariates are Post.Hour, Consumers, Reach.by.Users.with.Likes, Users.with.Likes.and.Engagement, Like and Share.  
 

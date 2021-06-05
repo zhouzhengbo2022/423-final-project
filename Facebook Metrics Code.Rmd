@@ -36,7 +36,7 @@ rm(list=ls()) # clear environment
 ```
    
 ```{r, echo=FALSE, results='hide', message=FALSE, error=FALSE, warning=FALSE}
-dataset <- read.csv("/Users/miley/Desktop/2021 Spring/Data science/project/ML/Facebook_metrics/dataset_Facebook.csv", sep=";", header=T) # import data
+dataset <- read.csv("../dataset_Facebook.csv", sep=";", header=T) # import data
 
 # rename the variable for easy handling
 names(dataset)[1] <- "Page.Total.Likes"
@@ -90,7 +90,7 @@ Like .2%
 Share .2%  
 ```{r}
 dataset$Type = as.character(dataset$Type)
-dataset$Type = factor(dataset$Type,levels=c("Photo","Status","Link","Video"), labels=c(1:4))
+dataset$Type = factor(dataset$Type,levels=c("Photo","Status","Link","Video"), labels=c(1:4),ordered=TRUE)
 dataset$Type 
 ```
 
@@ -161,6 +161,7 @@ Three functions are included in this one matrix. The lower left shows pairwise c
 pairs.panels(dataset)
 plot(dataset)
 cor(dataset[, numeric_cols])
+#too many variables here
 ```
   
 # 2. Initial Model Building  
@@ -168,6 +169,10 @@ cor(dataset[, numeric_cols])
 This inital model is looking at all 19 variables within the dataset, with Page Total Likes as the chosen response variable. We plan to look at each variable and determine which ones are significant to build a final, reliable model.  
 
 [Insert Summary Graphic]
+```{r}
+model_full <- lm(Page.Total.Likes ~.,data=dataset)
+summary(model_full)
+```
 
 ```{r, echo=FALSE, results='hide', message=FALSE, error=FALSE, warning=FALSE}
 model <- lm(Page.Total.Likes ~ Post.Month+
@@ -493,6 +498,7 @@ model_new_log=lm(log.Page.Total.Likes ~ Post.Hour+
 }
 ```
 
+```{r}
 # 8. Random Forest & Bagging
 #install.packages("randomForest")
 library(randomForest)
@@ -520,6 +526,40 @@ fit = lm(Page.Total.Likes~ Type+
 mean(fit$residuals^2)
 summary(fit)$r.squared
 
+# 9. GBM
+#install.packages("gbm")
+library (gbm)
+
+set.seed(1)
+fit9 =gbm(Page.Total.Likes~Type+ 
+              Category+
+		  Post.Month+
+		  Post.Weekday+
+              Post.Hour+
+              Paid+
+              Total.Reach+
+              Total.Impressions+
+              Engaged.Users+
+              Consumers+
+              Consumptions+
+              Impressions.for.Users.with.Likes+
+              Reach.by.Users.with.Likes+
+              Users.with.Likes.and.Engagement+
+              Comment+
+              Like+
+              Share+
+              Total.Interactions,data=dataset, distribution= "gaussian",n.trees =500, interaction.depth =4)
+
+summary(fit9)
+gbm.perf(fit9)
+
+##partialPlots
+par(mfrow=c(1,2))
+plot(fit9 ,i="Post.Month")
+plot(fit9 ,i="Reach.by.Users.with.Likes")
+plot(fit9 ,i="Paid")
+```
+```{r}
 # Bagging
 randomForest(Page.Total.Likes~ Type+ 
               Category+
@@ -542,7 +582,7 @@ randomForest(Page.Total.Likes~ Type+
               data=dataset, mtry=18)
 
 # RandomForest
-randomForest(Page.Total.Likes~ Type+ 
+fit8 = randomForest(Page.Total.Likes~ Type+ 
               Category+
 		  Post.Month+
 		  Post.Weekday+
@@ -560,22 +600,46 @@ randomForest(Page.Total.Likes~ Type+
               Like+
               Share+
               Total.Interactions,
-              data=dataset)
+              data=dataset,mtry=6)
+fit8
+importance(fit8)
+#check the importance of variables
+varImpPlot(fit8)
+#par(mfrow=c(1,2))
+#partialPlot(fit8,dataset,"Type")
+#partialPlot(fit8,dataset,"Category")
+#partialPlot(fit8,dataset,"Post.Month")
+#partialPlot(fit8,dataset,"Post.Weekday")
+```
 
-# 9. GBM
-#install.packages("gbm")
-library (gbm)
 
-set.seed(1)
-boost.dataset=gbm(Page.Total.Likes~.,data=dataset, distribution= "gaussian",n.trees =500, interaction.depth =4)
-
-summary(boost.dataset)
-
-##partialPlots
+```{r}
+#install.packages("gam")
+library(gam)
+fitgam = gam(Page.Total.Likes~ Type+ 
+              Category+
+		          s(Post.Month)+
+		          s(Post.Weekday)+
+              s(Post.Hour)+
+              Paid+
+              s(Total.Reach)+
+              s(Total.Impressions)+
+              s(Engaged.Users)+
+              s(Consumers)+
+              s(Consumptions)+
+              s(Impressions.for.Users.with.Likes)+
+              s(Reach.by.Users.with.Likes)+
+              s(Users.with.Likes.and.Engagement)+
+              s(Comment)+
+              s(Like)+
+              s(Share)+
+              s(Total.Interactions),data=dataset)
+summary(fitgam)
 par(mfrow=c(1,2))
-plot(boost.dataset ,i="Post.Month")
-plot(boost.dataset ,i="Reach.by.Users.with.Likes")
-plot(boost.dataset ,i="Paid")
+plot(fitgam,se=T,scale = 2.5)
+```
+
+
 
 
 # 10. stepwise, ridge, and lasso model
@@ -587,6 +651,25 @@ train = runif(nrow(dataset))<.5
 
 ```{r}
 #stepwise model
+model4 = lm(Page.Total.Likes ~ Type + 
+              Category+
+              Post.Month+
+              Post.Weekday+
+              Post.Hour+
+              Paid+
+              Total.Reach+
+              Total.Impressions+
+              Engaged.Users+
+              Consumers+
+              Consumptions+
+              Impressions.for.Users.with.Likes+
+              Reach.by.Users.with.Likes+
+              Users.with.Likes.and.Engagement+
+              Comment+
+              Like+
+              Share+
+              Total.Interactions,
+              data=dataset)
 stepwise_model = step(model4)
 yhat = predict(stepwise_model, dataset[!train,])
 mean((dataset$Page.Total.Likes[!train] - yhat)^2)        # compute test set MSE
@@ -594,7 +677,25 @@ summary(stepwise_model)
 ```
 ```{r}
 #ridge model
-x = model.matrix(Page.Total.Likes ~ ., dataset)
+library(glmnet)
+x = model.matrix(Page.Total.Likes ~ Type + 
+              Category+
+              Post.Month+
+              Post.Weekday+
+              Post.Hour+
+              Paid+
+              Total.Reach+
+              Total.Impressions+
+              Engaged.Users+
+              Consumers+
+              Consumptions+
+              Impressions.for.Users.with.Likes+
+              Reach.by.Users.with.Likes+
+              Users.with.Likes.and.Engagement+
+              Comment+
+              Like+
+              Share+
+              Total.Interactions, dataset)
 fit.ridge = glmnet(x[train,], dataset$Page.Total.Likes[train], alpha=0) # alpha=0 means ridge
 plot(fit.ridge, xvar="lambda")
 fit.cv = cv.glmnet(x[train,], dataset$Page.Total.Likes[train], alpha=0) # find optimal lambda
